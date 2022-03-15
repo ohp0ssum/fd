@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+
+active_dir=$(pwd -P) # the -P option expands symlinks to their physical address
+echo "current directory: $active_dir"
+echo "this directory contains:"
+dir_contents=$(ls -d .[^.]*/ */) # -d option to only list directories, and patterns to match hidden folders but exclue implicit . and ..
+folder_count=0
+for folder in $dir_contents
+    do
+        ((folder_count=folder_count+1))
+        echo -e -n "$folder\b " # remove the trailing forward slash from the folder names
+    done
+echo -e "\nfound $folder_count folders"
