@@ -1,13 +1,83 @@
-#!/usr/bin/bash
+#!/bin/bash
 
-active_dir=$(pwd -P) # the -P option expands symlinks to their physical address
-echo "current directory: $active_dir"
-echo "this directory contains:"
-dir_contents=$(ls -d .[^.]*/ */) # -d option to only list directories, and patterns to match hidden folders but exclue implicit . and ..
-folder_count=0
-for folder in $dir_contents
+# How to convert a script to a shell function:
+# https://stackoverflow.com/questions/874452/change-the-current-directory-from-a-bash-script
+
+# remember the current setting of the IFS system variable, then change it to avoid newlines after words.
+# this helped: https://unix.stackexchange.com/questions/640062/how-to-temporarily-save-and-restore-the-ifs-variable-properly
+unset saved_IFS
+[ -n "${IFS+set}" ] && saved_IFS=$IFS
+
+IFS=$(echo -en "\n\b")
+
+shopt -s nullglob extglob 
+
+# global arrays
+declare -a subdirs
+declare -a explored
+
+if [ "$#" -eq 1 ]; then
+    target_dir=$(pwd)
+    query=$1
+elif [ "$#" -eq 2 ]; then
+    target_dir=$1
+    query=$2
+else
+    echo "Error: Expects one or two command line arguments"
+    exit 1
+fi
+
+echo "Current directory is: $(pwd)"
+echo "Target directory: $target_dir"
+echo "Search query: $query"
+
+
+function getsubdirs () {
+    # this function sets the global array 'subdirs' to contain a list of subdirectories of a given directory.
+    # this helped: https://stackoverflow.com/questions/28393843/bash-list-all-subdirectories-in-a-folder-write-them-to-array-to-use-in-a-menu
+    
+    subdirs=() # null the array
+    this_dir=$1
+    # populate the subdirs array with the paths of all sub-directories in the target directory:
+    # (include hidden files beginning with . but exclude the implicit . and .. directories)
+    subdirs=( $this_dir/*/ $this_dir/.[^.]*/ )
+    # remove the file tree component of each path in the array:
+    subdirs=( "${subdirs[@]#"$this_dir/"}" )
+    # delete the trailing backslashes
+    subdirs=( "${subdirs[@]%/}" )
+}
+
+
+function matchquery () {
+    # attempt to find a subdirectory in the subdirs array that matches the user's intended destination directory.
+    # if a suitable match is found, cd into that directory and exit the program.
+
+    querylen=${#query}
+    for subdir in ${subdirs[@]}
     do
-        ((folder_count=folder_count+1))
-        echo -e -n "$folder\b " # remove the trailing forward slash from the folder names
+        if [ "$query" == "${subdir:0:querylen}" ]; then
+            echo "Match found: $target_dir/$subdir"
+            cd $target_dir/$subdir
+            return 0
+        fi
     done
-echo -e "\nfound $folder_count folders"
+}
+
+
+getsubdirs $target_dir
+matchquery
+
+# Verbose output for debugging:
+    echo -e "\nSubdirs:"
+    echo "${subdirs[@]}"
+    echo -e "\nIterated list of subdirectories in the 'subdirs' array:"
+    i=0
+    for subdir in ${subdirs[@]}
+        do
+            (( i++ ))
+            echo "  $i: $subdir"
+        done
+
+# restore the IFS system variable (or unset it, if it was previously unset)
+unset IFS
+[ -n "${saved_IFS+set}" ] && { IFS=$saved_IFS; unset saved_IFS; }
